@@ -13,6 +13,8 @@ __global__ void vectorAdd(const float* __restrict__ A,
 }
 
 int main() {
+    cudaFree(0);
+
     const int N = 10;
     size_t size = N * sizeof(float);
 
