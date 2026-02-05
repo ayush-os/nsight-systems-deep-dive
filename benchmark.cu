@@ -1,4 +1,5 @@
 #include <iostream>
+#include <nvtx3/nvToolsExt.h>
 #include <cuda_runtime.h>
 
 __global__ void vectorAdd(const float* __restrict__ A, 
@@ -12,8 +13,7 @@ __global__ void vectorAdd(const float* __restrict__ A,
 }
 
 int main() {
-    // 2^26 elements (~67 million), large enough to saturate DRAM bandwidth
-    const int N = 1 << 26;
+    const int N = 10;
     size_t size = N * sizeof(float);
 
     float *h_A, *h_B, *h_C;
@@ -45,12 +45,19 @@ int main() {
 
     std::cout << "Launching kernel with " << blocksPerGrid << " blocks..." << std::endl;
 
-    // Warmup
-    vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+    nvtxRangePushA("Warmup");
+    for (int i = 0; i < 10; i++) {
+        vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+    }
     cudaDeviceSynchronize();
+    nvtxRangePop();
 
-    vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+    nvtxRangePushA("Profile_Loop");
+    for (int i = 0; i < 1000; i++) {
+        vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+    }
     cudaDeviceSynchronize();
+    nvtxRangePop();
 
     // Copy back and verify
     cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
