@@ -43,6 +43,7 @@ int main() {
 
     // Kernel Launch Configuration
     int threadsPerBlock = 256;
+    int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
     int streamBlocks = (ELEMS_PER_STREAM + threadsPerBlock - 1) / threadsPerBlock;
     
     cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
