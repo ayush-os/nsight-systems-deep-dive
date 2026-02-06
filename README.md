@@ -173,3 +173,86 @@ Generated:
     /home/paperspace/nsight-systems-deep-dive/vector_add_profile_v4.nsys-rep
     /home/paperspace/nsight-systems-deep-dive/vector_add_profile_v4.sqlite
 paperspace@psbqejul7uvv:~/nsight-systems-deep-dive$ 
+
+
+### VECTOR ADD RESULTS WHEN N=50m and 1000 LOOPS -> Memory bound
+### Now, one launch has 100.7% of gpu time (virtually no overhead) because we have amoritzed overehad over the higher N. 
+
+paperspace@psbqejul7uvv:~/nsight-systems-deep-dive$ sudo $(which nsys) profile   -t cuda,nvtx,osrt   --gpu-metrics-device=all   --cpuctxsw=none   --sample=cpu   --force-overwrite true   --stats=true   -o vector_add_profile_v5_N50M   ./bench_a100
+GPU 0: General Metrics for NVIDIA GA100 (any frequency)
+Generating '/tmp/nsys-report-a789.qdstrm'
+[1/8] [========================100%] vector_add_profile_v5_N50M.nsys-rep
+[2/8] [========================100%] vector_add_profile_v5_N50M.sqlite
+[3/8] Executing 'nvtx_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances    Avg (ns)       Med (ns)      Min (ns)     Max (ns)    StdDev (ns)   Style      Range    
+ --------  ---------------  ---------  -------------  -------------  -----------  -----------  -----------  -------  ------------
+     99.0      380,528,710          1  380,528,710.0  380,528,710.0  380,528,710  380,528,710          0.0  PushPop  Profile_Loop
+      1.0        3,998,463          1    3,998,463.0    3,998,463.0    3,998,463    3,998,463          0.0  PushPop  Warmup      
+
+[4/8] Executing 'osrt_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls    Avg (ns)       Med (ns)     Min (ns)     Max (ns)      StdDev (ns)        Name     
+ --------  ---------------  ---------  -------------  -------------  ---------  -------------  -------------  --------------
+     56.5    1,121,540,218          2  560,770,109.0  560,770,109.0  2,535,553  1,119,004,665  789,462,880.1  sem_wait      
+     40.4      800,946,783         24   33,372,782.6    1,534,572.5      3,691    100,201,444   44,752,702.8  poll          
+      2.8       55,551,878        750       74,069.2        8,482.5          0     25,586,999      947,616.4  ioctl         
+      0.1        2,826,142         51       55,414.5       11,313.0      8,414      1,928,317      267,942.5  mmap64        
+      0.1        1,090,233         15       72,682.2       56,947.0     36,336        330,334       72,294.0  sem_timedwait 
+      0.1        1,005,135         74       13,582.9       12,683.5      3,966         33,141        4,535.5  open64        
+      0.0          266,221          4       66,555.3       67,375.5     56,048         75,422        8,081.8  pthread_create
+      0.0          189,636         17       11,155.1        4,491.0      2,249         50,553       13,214.7  mmap          
+      0.0          129,978         36        3,610.5        2,463.0      1,204         12,954        2,603.0  fopen         
+      0.0          123,198         16        7,699.9        8,180.5        660         11,069        2,292.0  write         
+      0.0          106,177         12        8,848.1        6,524.0      3,659         25,745        6,356.4  munmap        
+      0.0           69,545         53        1,312.2          170.0        160         40,832        5,780.9  fgets         
+      0.0           36,449         81          450.0          424.0          0          1,234          154.3  fcntl         
+      0.0           36,292         29        1,251.4        1,176.0        760          2,516          425.0  fclose        
+      0.0           25,567          6        4,261.2        3,920.5      1,566          8,411        2,402.6  open          
+      0.0           21,420         20        1,071.0          954.5        345          3,263          741.6  read          
+      0.0           21,065          2       10,532.5       10,532.5      8,526         12,539        2,837.6  fread         
+      0.0           17,065          2        8,532.5        8,532.5      4,987         12,078        5,014.1  socket        
+      0.0           12,559          1       12,559.0       12,559.0     12,559         12,559            0.0  connect       
+      0.0           11,118          1       11,118.0       11,118.0     11,118         11,118            0.0  pipe2         
+      0.0            4,815         16          300.9          167.0        154          1,733          408.7  fflush        
+      0.0            4,752         13          365.5          354.0        266            559           83.1  dup           
+      0.0            3,367          1        3,367.0        3,367.0      3,367          3,367            0.0  fopen64       
+      0.0            1,865          1        1,865.0        1,865.0      1,865          1,865            0.0  bind          
+      0.0            1,040          1        1,040.0        1,040.0      1,040          1,040            0.0  listen        
+
+[5/8] Executing 'cuda_api_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls    Avg (ns)       Med (ns)      Min (ns)    Max (ns)     StdDev (ns)            Name         
+ --------  ---------------  ---------  -------------  -------------  ----------  -----------  -------------  ----------------------
+     60.4      380,233,165          2  190,116,582.5  190,116,582.5   3,755,794  376,477,371  263,553,954.6  cudaDeviceSynchronize 
+     22.0      138,152,208          3   46,050,736.0   21,292,496.0  21,067,025   95,792,687   43,077,940.7  cudaMemcpy            
+     16.9      106,310,594          4   26,577,648.5      255,200.0     134,365  105,665,829   52,725,564.0  cudaFree              
+      0.6        3,892,831      1,010        3,854.3        3,548.5       3,054      191,618        5,966.9  cudaLaunchKernel      
+      0.1          581,682          3      193,894.0       89,777.0      83,693      408,212      185,629.8  cudaMalloc            
+      0.0            2,136          1        2,136.0        2,136.0       2,136        2,136            0.0  cuModuleGetLoadingMode
+
+[6/8] Executing 'cuda_gpu_kern_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances  Avg (ns)   Med (ns)   Min (ns)  Max (ns)  StdDev (ns)                          Name                         
+ --------  ---------------  ---------  ---------  ---------  --------  --------  -----------  -----------------------------------------------------
+    100.0      383,261,009      1,010  379,466.3  379,516.0   373,789   386,397      1,908.4  vectorAdd(const float *, const float *, float *, int)
+
+[7/8] Executing 'cuda_gpu_mem_time_sum' stats report
+
+ Time (%)  Total Time (ns)  Count    Avg (ns)      Med (ns)     Min (ns)    Max (ns)   StdDev (ns)      Operation     
+ --------  ---------------  -----  ------------  ------------  ----------  ----------  -----------  ------------------
+     69.3       94,886,051      1  94,886,051.0  94,886,051.0  94,886,051  94,886,051          0.0  [CUDA memcpy DtoH]
+     30.7       42,069,868      2  21,034,934.0  21,034,934.0  20,909,527  21,160,341    177,352.3  [CUDA memcpy HtoD]
+
+[8/8] Executing 'cuda_gpu_mem_size_sum' stats report
+
+ Total (MB)  Count  Avg (MB)  Med (MB)  Min (MB)  Max (MB)  StdDev (MB)      Operation     
+ ----------  -----  --------  --------  --------  --------  -----------  ------------------
+    400.000      2   200.000   200.000   200.000   200.000        0.000  [CUDA memcpy HtoD]
+    200.000      1   200.000   200.000   200.000   200.000        0.000  [CUDA memcpy DtoH]
+
+
+
+## FINAL TAKEAWAYS
+ - startup tax - do cudaFree(0) at the beginning so it doesn't look like cudaMalloc takes forever - initial context creation takes a really long time
+ - launch overhead is real. when workload is very small (N=10), launch overhead took 48% of total time to execute a kernel E2E. But when i increased the workload to 50M, suddenly that was amortized and now launch overhead was negliglble, and now I could genuinely see whether i was compute bound or memory bound. Batch work!
