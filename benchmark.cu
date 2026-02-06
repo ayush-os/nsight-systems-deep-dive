@@ -22,9 +22,9 @@ int main() {
     float *d_A, *d_B, *d_C;
 
     // Allocate Host Memory
-    h_A = (float*)malloc(size);
-    h_B = (float*)malloc(size);
-    h_C = (float*)malloc(size);
+    cudaMallocHost(&h_A, size);
+    cudaMallocHost(&h_B, size);
+    cudaMallocHost(&h_C, size);
 
     // Initialize Host Data
     for (int i = 0; i < N; i++) {
@@ -40,6 +40,9 @@ int main() {
     // Kernel Launch Configuration
     int threadsPerBlock = 256;
     int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
+    
+    cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
 
     nvtxRangePushA("Warmup");
     for (int i = 0; i < 10; i++) {
@@ -48,17 +51,28 @@ int main() {
     cudaDeviceSynchronize();
     nvtxRangePop();
 
-    nvtxRangePushA("Serial_Bottleneck_Loop");
-    for (int i = 0; i < 100; i++) {
-        nvtxRangePushA("iteration");
+    const int num_streams = 4;
+    cudaStream_t streams[num_streams];
+
+    nvtxRangePushA("Create streams");
+    for (int i = 0; i < num_streams; i++) {
+        cudaStreamCreate(&streams[i]);
+    }
+    nvtxRangePop();
+
+    const int ELEMS_PER_STREAM = N / 4;
+
+    nvtxRangePushA("Streamed_Loop");
+    for (int i = 0; i < num_streams; i++) {
+        nvtxRangePushA("stream i");
         // Copy to Device
-        cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
-        cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
+        cudaMemcpyAsync(d_A + ELEMS_PER_STREAM, h_A + ELEMS_PER_STREAM, size / 4, cudaMemcpyHostToDevice, streams[i]);
+        cudaMemcpyAsync(d_B + ELEMS_PER_STREAM, h_B + ELEMS_PER_STREAM, size / 4, cudaMemcpyHostToDevice, streams[i]);
         
-        vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+        vectorAdd<<<blocksPerGrid / num_streams, threadsPerBlock, 0, streams[i]>>>(d_A + ELEMS_PER_STREAM, d_B + ELEMS_PER_STREAM, d_C + ELEMS_PER_STREAM, ELEMS_PER_STREAM;
         
         // Copy back and verify
-        cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
+        cudaMemcpyAsync(h_C + ELEMS_PER_STREAM, d_C + ELEMS_PER_STREAM, size / 4, cudaMemcpyDeviceToHost);
 
         nvtxRangePop();
     }
