@@ -15,16 +15,16 @@ __global__ void vectorAdd(const float* __restrict__ A,
 int main() {
     cudaFree(0);
 
-    const int N = 10;
+    const int N = 50000000;
     size_t size = N * sizeof(float);
 
     float *h_A, *h_B, *h_C;
     float *d_A, *d_B, *d_C;
 
     // Allocate Host Memory
-    h_A = (float*)malloc(size);
-    h_B = (float*)malloc(size);
-    h_C = (float*)malloc(size);
+    h_A = (float*)cudaMallocHost(size);
+    h_B = (float*)cudaMallocHost(size);
+    h_C = (float*)cudaMallocHost(size);
 
     // Initialize Host Data
     for (int i = 0; i < N; i++) {
@@ -45,8 +45,6 @@ int main() {
     int threadsPerBlock = 256;
     int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
 
-    std::cout << "Launching kernel with " << blocksPerGrid << " blocks..." << std::endl;
-
     nvtxRangePushA("Warmup");
     for (int i = 0; i < 10; i++) {
         vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
@@ -64,8 +62,6 @@ int main() {
     // Copy back and verify
     cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
     if (h_C[0] != 3.0f) std::cerr << "Error in calculation!" << std::endl;
-
-    std::cout << "Done." << std::endl;
 
     // Cleanup
     cudaFree(d_A); cudaFree(d_B); cudaFree(d_C);
