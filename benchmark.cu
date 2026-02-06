@@ -71,7 +71,7 @@ int main() {
             cudaMemcpyAsync(d_A + offset, h_A + offset, BYTES_PER_STREAM, cudaMemcpyHostToDevice, streams[i]);
             cudaMemcpyAsync(d_B + offset, h_B + offset, BYTES_PER_STREAM, cudaMemcpyHostToDevice, streams[i]);
             
-            vectorAdd<<<blocksPerGrid / num_streams, threadsPerBlock, 0, streams[i]>>>(
+            vectorAdd<<<streamBlocks / num_streams, threadsPerBlock, 0, streams[i]>>>(
                 d_A + offset, d_B + offset, d_C + offset, ELEMS_PER_STREAM
             );
 
