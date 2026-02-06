@@ -256,3 +256,82 @@ Generating '/tmp/nsys-report-a789.qdstrm'
 ## FINAL TAKEAWAYS
  - startup tax - do cudaFree(0) at the beginning so it doesn't look like cudaMalloc takes forever - initial context creation takes a really long time
  - launch overhead is real. when workload is very small (N=10), launch overhead took 48% of total time to execute a kernel E2E. But when i increased the workload to 50M, suddenly that was amortized and now launch overhead was negliglble, and now I could genuinely see whether i was compute bound or memory bound. Batch work!
+
+
+ ### PART 2: PUTTING MEMCPY H2D and D2H INSIDE LOOP
+
+ ## Look at how much time the memcpys take now - 4 billion - and the time 1 kernel takes is 4,026,049,432 => 4,026,049,432 /  4,031,222,183 -> less than 1%
+
+ paperspace@pst13kp1ex63:~/nsight-systems-deep-dive$ sudo $(which nsys) profile   -t cuda,nvtx,osrt   --gpu-metrics-device=all   --cpuctxsw=none   --sample=cpu   --force-overwrite true   --stats=true   -o vector_add_profile_serial   ./bench_a100
+GPU 0: General Metrics for NVIDIA GA100 (any frequency)
+Generating '/tmp/nsys-report-0090.qdstrm'
+[1/8] [========================100%] vector_add_profile_serial.nsys-rep
+[2/8] [========================100%] vector_add_profile_serial.sqlite
+[3/8] Executing 'nvtx_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances     Avg (ns)         Med (ns)        Min (ns)       Max (ns)     StdDev (ns)    Style           Range         
+ --------  ---------------  ---------  ---------------  ---------------  -------------  -------------  ------------  -------  ----------------------
+     50.0    4,031,222,183          1  4,031,222,183.0  4,031,222,183.0  4,031,222,183  4,031,222,183           0.0  PushPop  Serial_Bottleneck_Loop
+     50.0    4,029,987,269        100     40,299,872.7     38,056,582.5     36,813,466    136,269,241  10,008,598.0  PushPop  iteration             
+      0.1        4,402,449          1      4,402,449.0      4,402,449.0      4,402,449      4,402,449           0.0  PushPop  Warmup                
+
+[4/8] Executing 'osrt_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls     Avg (ns)         Med (ns)      Min (ns)     Max (ns)       StdDev (ns)         Name     
+ --------  ---------------  ---------  ---------------  ---------------  ---------  -------------  ---------------  --------------
+     51.1    4,796,240,609          2  2,398,120,304.5  2,398,120,304.5  2,228,226  4,794,012,383  3,388,303,071.4  sem_wait      
+     48.0    4,508,739,032         61     73,913,754.6    100,176,857.0      5,090    100,360,124     42,572,231.1  poll          
+      0.7       69,495,752        750         92,661.0         17,000.0      1,110     24,628,230        919,213.4  ioctl         
+      0.1        7,860,946         51        154,136.2         15,290.0     12,970      5,989,898        835,036.1  mmap64        
+      0.0        1,681,048         15        112,069.9         82,149.0     59,359        444,608         95,073.3  sem_timedwait 
+      0.0          919,191         74         12,421.5         11,180.0      5,760         47,960          5,693.4  open64        
+      0.0          360,948          4         90,237.0         89,139.5     63,329        119,340         22,952.4  pthread_create
+      0.0          311,479         17         18,322.3          7,450.0      3,500        139,839         32,381.1  mmap          
+      0.0          244,029         36          6,778.6          5,505.0      2,300         19,810          3,767.6  fopen         
+      0.0          165,909         51          3,253.1            350.0        330         94,399         13,736.0  fgets         
+      0.0          164,421         16         10,276.3          9,345.5        960         16,390          3,586.8  write         
+      0.0          140,068         12         11,672.3          9,779.5      6,260         25,470          5,280.2  munmap        
+      0.0           79,600         29          2,744.8          2,740.0      1,780          4,140            641.9  fclose        
+      0.0           68,039         81            840.0            770.0        610          2,040            219.6  fcntl         
+      0.0           53,509          6          8,918.2          8,259.5      5,470         14,280          3,579.7  open          
+      0.0           46,889         20          2,344.5          1,934.5      1,360          6,110          1,244.7  read          
+      0.0           29,370          2         14,685.0         14,685.0     12,720         16,650          2,778.9  fread         
+      0.0           19,950          2          9,975.0          9,975.0      4,860         15,090          7,233.7  socket        
+      0.0           18,439          1         18,439.0         18,439.0     18,439         18,439              0.0  pipe2         
+      0.0           17,600          1         17,600.0         17,600.0     17,600         17,600              0.0  connect       
+      0.0           16,090          1         16,090.0         16,090.0     16,090         16,090              0.0  fopen64       
+      0.0           10,320         13            793.8            700.0        680          1,250            178.0  dup           
+      0.0            8,870         16            554.4            340.0        330          2,810            625.0  fflush        
+      0.0            2,390          1          2,390.0          2,390.0      2,390          2,390              0.0  bind          
+      0.0            1,240          1          1,240.0          1,240.0      1,240          1,240              0.0  listen        
+
+[5/8] Executing 'cuda_api_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls    Avg (ns)      Med (ns)     Min (ns)    Max (ns)     StdDev (ns)            Name         
+ --------  ---------------  ---------  ------------  ------------  ----------  -----------  -------------  ----------------------
+     94.5    4,026,049,432        300  13,420,164.8  11,403,655.5  10,519,110  106,207,958    5,943,177.6  cudaMemcpy            
+      5.3      227,393,242          4  56,848,310.5     299,552.5     202,099  226,592,038  113,162,512.8  cudaFree              
+      0.1        3,632,255          2   1,816,127.5   1,816,127.5      10,670    3,621,585    2,553,302.5  cudaDeviceSynchronize 
+      0.1        3,493,458        110      31,758.7      23,825.0       3,640      722,275       67,091.2  cudaLaunchKernel      
+      0.0        1,088,223          3     362,741.0     156,219.0     156,169      775,835      357,749.9  cudaMalloc            
+      0.0            1,350          1       1,350.0       1,350.0       1,350        1,350            0.0  cuModuleGetLoadingMode
+
+[6/8] Executing 'cuda_gpu_kern_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances  Avg (ns)   Med (ns)   Min (ns)  Max (ns)  StdDev (ns)                          Name                         
+ --------  ---------------  ---------  ---------  ---------  --------  --------  -----------  -----------------------------------------------------
+    100.0       38,607,885        110  350,980.8  349,820.5   344,765   375,836      5,260.2  vectorAdd(const float *, const float *, float *, int)
+
+[7/8] Executing 'cuda_gpu_mem_time_sum' stats report
+
+ Time (%)  Total Time (ns)  Count    Avg (ns)      Med (ns)     Min (ns)    Max (ns)    StdDev (ns)      Operation     
+ --------  ---------------  -----  ------------  ------------  ----------  -----------  -----------  ------------------
+     58.8    2,333,036,274    200  11,665,181.4  10,839,631.5  10,491,971   19,745,330  1,904,799.5  [CUDA memcpy HtoD]
+     41.2    1,633,123,493    100  16,331,234.9  15,391,254.5  15,077,562  104,863,889  8,947,515.4  [CUDA memcpy DtoH]
+
+[8/8] Executing 'cuda_gpu_mem_size_sum' stats report
+
+ Total (MB)  Count  Avg (MB)  Med (MB)  Min (MB)  Max (MB)  StdDev (MB)      Operation     
+ ----------  -----  --------  --------  --------  --------  -----------  ------------------
+ 40,000.000    200   200.000   200.000   200.000   200.000        0.000  [CUDA memcpy HtoD]
+ 20,000.000    100   200.000   200.000   200.000   200.000        0.000  [CUDA memcpy DtoH]
