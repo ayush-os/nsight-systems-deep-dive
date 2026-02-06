@@ -37,6 +37,10 @@ int main() {
     cudaMalloc(&d_B, size);
     cudaMalloc(&d_C, size);
 
+    const int num_streams = 4;
+    const int ELEMS_PER_STREAM = N / num_streams;
+    const size_t BYTES_PER_STREAM = ELEMS_PER_STREAM * sizeof(float);
+
     // Kernel Launch Configuration
     int threadsPerBlock = 256;
     int streamBlocks = (ELEMS_PER_STREAM + threadsPerBlock - 1) / threadsPerBlock;
@@ -51,7 +55,6 @@ int main() {
     cudaDeviceSynchronize();
     nvtxRangePop();
 
-    const int num_streams = 4;
     cudaStream_t streams[num_streams];
 
     nvtxRangePushA("Create streams");
@@ -59,9 +62,6 @@ int main() {
         cudaStreamCreate(&streams[i]);
     }
     nvtxRangePop();
-
-    const int ELEMS_PER_STREAM = N / num_streams;
-    const size_t BYTES_PER_STREAM = ELEMS_PER_STREAM * sizeof(float);
 
     nvtxRangePushA("Streamed_Loop");
     for (int _ = 0; _ < 100; _++) {
