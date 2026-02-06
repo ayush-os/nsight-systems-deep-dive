@@ -335,3 +335,90 @@ Generating '/tmp/nsys-report-0090.qdstrm'
  ----------  -----  --------  --------  --------  --------  -----------  ------------------
  40,000.000    200   200.000   200.000   200.000   200.000        0.000  [CUDA memcpy HtoD]
  20,000.000    100   200.000   200.000   200.000   200.000        0.000  [CUDA memcpy DtoH]
+
+
+## SWITCHING TO STREAMING BASED IMPL 
+### pipelining hides latency because H2D, D2H, and Compute could all be utilized (100% hardware util) as opposed to 33%
+### Host alloc has lots of overhead - 1M to 373M - but it allows for GPU DMA to access page-locked/pinned mem - but this overhead is worth to
+#### get rid of the serialization
+
+GPU 0: General Metrics for NVIDIA GA100 (any frequency)
+Generating '/tmp/nsys-report-7b1c.qdstrm'
+[1/8] [========================100%] vector_add_profile_streamed.nsys-rep
+[2/8] [========================100%] vector_add_profile_streamed.sqlite
+[3/8] Executing 'nvtx_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances     Avg (ns)         Med (ns)        Min (ns)       Max (ns)     StdDev (ns)   Style       Range     
+ --------  ---------------  ---------  ---------------  ---------------  -------------  -------------  -----------  -------  --------------
+     99.8    2,119,060,716          1  2,119,060,716.0  2,119,060,716.0  2,119,060,716  2,119,060,716          0.0  PushPop  Streamed_Loop 
+      0.2        3,873,115          1      3,873,115.0      3,873,115.0      3,873,115      3,873,115          0.0  PushPop  Warmup        
+      0.0           44,220          1         44,220.0         44,220.0         44,220         44,220          0.0  PushPop  Create streams
+
+[4/8] Executing 'osrt_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls     Avg (ns)         Med (ns)      Min (ns)     Max (ns)       StdDev (ns)         Name     
+ --------  ---------------  ---------  ---------------  ---------------  ---------  -------------  ---------------  --------------
+     47.7    3,119,035,639          2  1,559,517,819.5  1,559,517,819.5  2,544,466  3,116,491,173  2,201,892,832.8  sem_wait      
+     42.9    2,804,739,722         44     63,744,084.6    100,168,430.5      6,490    100,222,151     47,079,261.6  poll          
+      7.3      474,205,007        771        615,051.9         18,191.0      1,120    122,306,549      7,636,186.4  ioctl         
+      1.9      122,292,098         26      4,703,542.2         17,485.0      4,240     40,709,392     13,218,633.3  mmap          
+      0.1        8,171,735         51        160,230.1         16,780.0     13,700      6,113,338        852,066.3  mmap64        
+      0.0        1,860,645         15        124,043.0         96,910.0     79,211        520,523        110,787.4  sem_timedwait 
+      0.0        1,242,252         74         16,787.2         14,360.0      6,710        148,531         16,333.0  open64        
+      0.0          374,693         17         22,040.8         13,270.0      6,260        100,031         23,064.1  munmap        
+      0.0          332,263          4         83,065.8         81,196.0     71,240         98,631         12,415.6  pthread_create
+      0.0          285,032         36          7,917.6          6,585.0      2,430         22,041          4,620.2  fopen         
+      0.0          188,280         16         11,767.5         12,010.0        930         14,780          3,072.9  write         
+      0.0          175,442         62          2,829.7            350.0        330        100,741         13,072.8  fgets         
+      0.0           83,130         29          2,866.6          2,670.0      1,720          4,890            779.3  fclose        
+      0.0           64,827         81            800.3            780.0        567          1,510            125.3  fcntl         
+      0.0           44,021          6          7,336.8          7,070.0      3,651         12,650          3,121.4  open          
+      0.0           41,940         20          2,097.0          1,740.0      1,390          3,930            803.8  read          
+      0.0           28,211          2         14,105.5         14,105.5     10,460         17,751          5,155.5  fread         
+      0.0           19,101          2          9,550.5          9,550.5      5,340         13,761          5,954.5  socket        
+      0.0           15,050          1         15,050.0         15,050.0     15,050         15,050              0.0  pipe2         
+      0.0           12,630          1         12,630.0         12,630.0     12,630         12,630              0.0  connect       
+      0.0            9,370         13            720.8            710.0        680            920             60.9  dup           
+      0.0            7,411         16            463.2            340.0        330          1,670            352.9  fflush        
+      0.0            7,040          1          7,040.0          7,040.0      7,040          7,040              0.0  fopen64       
+      0.0            2,140          1          2,140.0          2,140.0      2,140          2,140              0.0  bind          
+      0.0            1,080          1          1,080.0          1,080.0      1,080          1,080              0.0  listen        
+
+[5/8] Executing 'cuda_api_sum' stats report
+
+ Time (%)  Total Time (ns)  Num Calls     Avg (ns)         Med (ns)       Min (ns)      Max (ns)       StdDev (ns)             Name         
+ --------  ---------------  ---------  ---------------  ---------------  -----------  -------------  ---------------  ----------------------
+     75.6    2,115,568,597          2  1,057,784,298.5  1,057,784,298.5    3,633,204  2,111,935,393  1,490,794,774.6  cudaDeviceSynchronize 
+     13.4      373,652,747          3    124,550,915.7    124,981,035.0  123,127,613    125,544,099      1,264,358.8  cudaHostAlloc         
+      5.3      147,184,802          3     49,061,600.7     48,905,103.0   48,848,543     49,431,156        321,291.3  cudaFreeHost          
+      5.0      138,784,030          4     34,696,007.5        288,436.5      192,501    138,014,656     68,879,148.8  cudaFree              
+      0.6       16,492,012          2      8,246,006.0      8,246,006.0    7,906,419      8,585,593        480,248.5  cudaMemcpy            
+      0.2        4,646,961      1,200          3,872.5          3,760.0        3,310         42,871          1,841.8  cudaMemcpyAsync       
+      0.1        1,782,813        410          4,348.3          3,660.0        3,470        189,351          9,259.7  cudaLaunchKernel      
+      0.0          707,325          3        235,775.0        142,821.0      131,841        432,663        170,598.4  cudaMalloc            
+      0.0           40,530          4         10,132.5          4,070.0        3,680         28,710         12,386.9  cudaStreamCreate      
+      0.0            2,010          1          2,010.0          2,010.0        2,010          2,010              0.0  cuModuleGetLoadingMode
+
+[6/8] Executing 'cuda_gpu_kern_sum' stats report
+
+ Time (%)  Total Time (ns)  Instances  Avg (ns)  Med (ns)  Min (ns)  Max (ns)  StdDev (ns)                          Name                         
+ --------  ---------------  ---------  --------  --------  --------  --------  -----------  -----------------------------------------------------
+    100.0       14,835,396        410  36,183.9  27,904.0    27,360   374,496     52,212.4  vectorAdd(const float *, const float *, float *, int)
+
+[7/8] Executing 'cuda_gpu_mem_time_sum' stats report
+
+ Time (%)  Total Time (ns)  Count   Avg (ns)     Med (ns)    Min (ns)   Max (ns)   StdDev (ns)      Operation     
+ --------  ---------------  -----  -----------  -----------  ---------  ---------  -----------  ------------------
+     64.3    2,122,685,654    802  2,646,740.2  2,696,327.5  1,946,597  8,562,357    473,005.2  [CUDA memcpy HtoD]
+     35.7    1,180,787,472    400  2,951,968.7  2,884,376.0  2,086,598  6,008,847    291,259.5  [CUDA memcpy DtoH]
+
+[8/8] Executing 'cuda_gpu_mem_size_sum' stats report
+
+ Total (MB)  Count  Avg (MB)  Med (MB)  Min (MB)  Max (MB)  StdDev (MB)      Operation     
+ ----------  -----  --------  --------  --------  --------  -----------  ------------------
+ 40,400.000    802    50.374    50.000    50.000   200.000        7.486  [CUDA memcpy HtoD]
+ 20,000.000    400    50.000    50.000    50.000    50.000        0.000  [CUDA memcpy DtoH]
+
+Generated:
+    /home/paperspace/nsight-systems-deep-dive/vector_add_profile_streamed.nsys-rep
+    /home/paperspace/nsight-systems-deep-dive/vector_add_profile_streamed.sqlite
