@@ -60,21 +60,21 @@ int main() {
     }
     nvtxRangePop();
 
-    const int ELEMS_PER_STREAM = N / 4;
+    const int ELEMS_PER_STREAM = N / num_streams;
+    const size_t BYTES_PER_STREAM = ELEMS_PER_STREAM * sizeof(float);
 
     nvtxRangePushA("Streamed_Loop");
     for (int i = 0; i < num_streams; i++) {
-        nvtxRangePushA("stream i");
-        // Copy to Device
-        cudaMemcpyAsync(d_A + ELEMS_PER_STREAM, h_A + ELEMS_PER_STREAM, size / 4, cudaMemcpyHostToDevice, streams[i]);
-        cudaMemcpyAsync(d_B + ELEMS_PER_STREAM, h_B + ELEMS_PER_STREAM, size / 4, cudaMemcpyHostToDevice, streams[i]);
-        
-        vectorAdd<<<blocksPerGrid / num_streams, threadsPerBlock, 0, streams[i]>>>(d_A + ELEMS_PER_STREAM, d_B + ELEMS_PER_STREAM, d_C + ELEMS_PER_STREAM, ELEMS_PER_STREAM;
-        
-        // Copy back and verify
-        cudaMemcpyAsync(h_C + ELEMS_PER_STREAM, d_C + ELEMS_PER_STREAM, size / 4, cudaMemcpyDeviceToHost);
+        int offset = i * ELEMS_PER_STREAM;
 
-        nvtxRangePop();
+        cudaMemcpyAsync(d_A + offset, h_A + offset, BYTES_PER_STREAM, cudaMemcpyHostToDevice, streams[i]);
+        cudaMemcpyAsync(d_B + offset, h_B + offset, BYTES_PER_STREAM, cudaMemcpyHostToDevice, streams[i]);
+        
+        vectorAdd<<<blocksPerGrid / num_streams, threadsPerBlock, 0, streams[i]>>>(
+            d_A + offset, d_B + offset, d_C + offset, ELEMS_PER_STREAM
+        );
+
+        cudaMemcpyAsync(h_C + offset, d_C + offset, BYTES_PER_STREAM, cudaMemcpyDeviceToHost, streams[i]);
     }
     cudaDeviceSynchronize();
     nvtxRangePop();
