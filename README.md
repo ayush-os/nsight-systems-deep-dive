@@ -2,7 +2,7 @@
 
 nvcc -arch=sm_80 benchmark.cu -o bench_a100
 
-### VECTOR ADD RESULTS WHEN N=10 and 1000 LOOPS 
+### VECTOR ADD RESULTS WHEN N=10 and 1000 LOOPS  -> LAUNCH BOUND
 
 #### only 52% of execution time is in kernels, rest is overhead
 #### AKA CPU spends as much time launching as GPU spends executing
