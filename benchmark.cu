@@ -22,9 +22,9 @@ int main() {
     float *d_A, *d_B, *d_C;
 
     // Allocate Host Memory
-    h_A = (float*)cudaMallocHost(size);
-    h_B = (float*)cudaMallocHost(size);
-    h_C = (float*)cudaMallocHost(size);
+    h_A = (float*)malloc(size);
+    h_B = (float*)malloc(size);
+    h_C = (float*)malloc(size);
 
     // Initialize Host Data
     for (int i = 0; i < N; i++) {
