@@ -85,7 +85,7 @@ int main() {
 
     // Cleanup
     cudaFree(d_A); cudaFree(d_B); cudaFree(d_C);
-    free(h_A); free(h_B); free(h_C);
+    cudaFreeHost(h_A); cudaFreeHost(h_B); cudaFreeHost(h_C);
 
     return 0;
 }
