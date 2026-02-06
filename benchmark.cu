@@ -37,10 +37,6 @@ int main() {
     cudaMalloc(&d_B, size);
     cudaMalloc(&d_C, size);
 
-    // Copy to Device
-    cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
-
     // Kernel Launch Configuration
     int threadsPerBlock = 256;
     int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
@@ -52,15 +48,23 @@ int main() {
     cudaDeviceSynchronize();
     nvtxRangePop();
 
-    nvtxRangePushA("Profile_Loop");
-    for (int i = 0; i < 1000; i++) {
+    nvtxRangePushA("Serial_Bottleneck_Loop");
+    for (int i = 0; i < 100; i++) {
+        nvtxRangePushA("iteration");
+        // Copy to Device
+        cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
+        
         vectorAdd<<<blocksPerGrid, threadsPerBlock>>>(d_A, d_B, d_C, N);
+        
+        // Copy back and verify
+        cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
+
+        nvtxRangePop();
     }
     cudaDeviceSynchronize();
     nvtxRangePop();
 
-    // Copy back and verify
-    cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
     if (h_C[0] != 3.0f) std::cerr << "Error in calculation!" << std::endl;
 
     // Cleanup
